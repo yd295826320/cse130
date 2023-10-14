@@ -192,12 +192,11 @@ int main(void) {
                 exit(1);
             }
 
-        }
-
-        else {
+        } else {
             fprintf(stderr, "Invalid Command\n");
             exit(1);
         }
+
     } else {
         fprintf(stderr, "Invalid Command\n");
         exit(1);
