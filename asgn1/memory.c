@@ -65,7 +65,7 @@ int main(void) {
                 }
 
                 int fd = open(file, O_RDONLY, 0);
-                
+
                 if (fd < 0){
                     
                     fprintf(stderr,"Invalid Command\n"); 
@@ -209,7 +209,7 @@ int main(void) {
 
             }
 
-            
+             
             else {
                 fprintf(stderr,"Invalid Command\n"); 
                 exit(1);
