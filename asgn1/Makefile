@@ -1,11 +1,27 @@
+EXECBIN  = memory
+SOURCES  = $(wildcard *.c)
+OBJECTS  = $(SOURCES:%.c=%.o)
+FORMATS  = $(SOURCES:%.c=%.fmt)
+
 CC       = clang
 FORMAT   = clang-format
 CFLAGS   = -Wall -Wpedantic -Werror -Wextra
 
-all : memory
+.PHONY: all clean format
 
-memory : memory.c
-	$(CC) $(CFLAGS) -o memory memory.c
+all: $(EXECBIN)
 
-clean :
-	rm -f memory memory.o
+$(EXECBIN): $(OBJECTS)
+	$(CC) -o $@ $^
+
+%.o : %.c
+	$(CC) $(CFLAGS) -c $<
+
+clean:
+	rm -f $(EXECBIN) $(OBJECTS)
+
+format: $(FORMATS)
+
+%.fmt: %.c
+	$(FORMAT) -i $<
+	touch $@
