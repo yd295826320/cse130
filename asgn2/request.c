@@ -12,12 +12,11 @@
 #include <regex.h>
 
 #define buffsize 4096
-#define re "([A-Z]{1,8}) /([a-zA-Z0-9.-]{1,63}) (HTTP/[0-9].[0-9])\r\n"
-#define hd "([a-zA-Z0-9.-]{1,128}): ([ -~]{0,128})\r\n"
+#define re       "([A-Z]{1,8}) /([a-zA-Z0-9.-]{1,63}) (HTTP/[0-9].[0-9])\r\n"
+#define hd       "([a-zA-Z0-9.-]{1,128}): ([ -~]{0,128})\r\n"
 
-
-void readrequest(int sd){
-    char readbuff[buffsize] = {0};
+void readrequest(int sd) {
+    char readbuff[buffsize] = { 0 };
     // char contbuff[buffsize];
     // ssize_t br = 0;
     // while (br < buffsize) {
@@ -32,11 +31,11 @@ void readrequest(int sd){
     //     // }
     //     br += od;
     // }
-    
+
     // int bytesread = recv(sd, readbuff, buffsize, 0);
     int bytesread = read(sd, readbuff, buffsize);
-    if (bytesread < 0){
-        status(500, sd, 0 ,0);
+    if (bytesread < 0) {
+        status(500, sd, 0, 0);
         return;
     }
     // read(sd, readbuff + bytesread, buffsize - bytesread);
@@ -72,7 +71,6 @@ void readrequest(int sd){
         Version = readbuff + matches[3].rm_so;
         eol = readbuff + matches[3].rm_eo + 2;
 
-        
         // send(sd, Method, strlen(Method), 0);
 
         Method[matches[1].rm_eo] = '\0';
@@ -82,11 +80,8 @@ void readrequest(int sd){
         // char t[buffsize];
         // sprintf(t, "Method %s\nURI %s\nVersion %s\neol %s\n", Method, URI, Version, eol);
         // send(sd, t, strlen(t), 0);
-        
-        
-        
-    }
-    else {
+
+    } else {
         Method = NULL;
         URI = NULL;
         Version = NULL;
@@ -109,8 +104,6 @@ void readrequest(int sd){
     //         printf("%c\n", eol[j]);
     //     }
     // }
-    
-    
 
     //sscanf(readbuff, "%s %s %s", Method, URI, Version);
 
@@ -119,14 +112,13 @@ void readrequest(int sd){
     //     return;
     // }
 
-    if (strcmp(Version, "HTTP/1.1") != 0){
+    if (strcmp(Version, "HTTP/1.1") != 0) {
         status(505, sd, 0, 0);
         return;
     }
 
-
-     // send(sd, eol, strlen(eol), 0);
-    char putbuff[buffsize] = {0};
+    // send(sd, eol, strlen(eol), 0);
+    char putbuff[buffsize] = { 0 };
     strcpy(putbuff, eol);
     // char *temp = NULL;
     // char *templen = NULL;
@@ -136,9 +128,9 @@ void readrequest(int sd){
     int index = 0;
     int check = 0;
     while ((rc = regexec(&regex, putbuff + index, 3, m2, 0)) == 0) {
-        
-        char key[128];   
-        char value[128]; 
+
+        char key[128];
+        char value[128];
         memset(key, 0, sizeof(key));
         memset(value, 0, sizeof(value));
         // Copy the key and value from the matched substring
@@ -155,7 +147,6 @@ void readrequest(int sd){
         // Update the current index for the next match
         index += m2[0].rm_eo;
         // printf("%d\n********\n",index);
-        
     }
 
     // char t[buffsize];
@@ -164,7 +155,7 @@ void readrequest(int sd){
 
     // printf("eol %s\n************\n", eol);
 
-    if (eol[0] != 13 || eol[1] != 10){
+    if (eol[0] != 13 || eol[1] != 10) {
         status(400, sd, 0, 0);
         return;
     }
@@ -184,7 +175,7 @@ void readrequest(int sd){
     //         char c = URI[i];
     //         if (isalpha(c) == 0 && isdigit(c) == 0 && c != 45 && c != 46){
     //             status(400, sd, 0, 0);
-    //             return; 
+    //             return;
     //         }
     //     }
     // }
@@ -193,7 +184,7 @@ void readrequest(int sd){
 
     regfree(&regex);
 
-    if (strcmp(Method, "GET") == 0){
+    if (strcmp(Method, "GET") == 0) {
         // if (strcmp(eol,"\r\n") != 0){
         //     // printf("here\n");
         //     status(400, sd, 0, 0);
@@ -202,91 +193,61 @@ void readrequest(int sd){
         orderget(sd, URI);
     }
 
-    else if(strcmp(Method, "PUT") == 0){
+    else if (strcmp(Method, "PUT") == 0) {
         // char *contentlen = strstr(readbuff, "Content-Length:");
         // if (contentlen == NULL){
         //     status(400, sd, 0, 0);
-        //     return; 
+        //     return;
         // }
         // char temp[buffsize];
         // int contlen;
         // sscanf(contentlen,"%s %d", temp, &contlen);
-        if (check < 1){
+        if (check < 1) {
             status(400, sd, 0, 0);
             return;
         }
-        
+
         orderput(sd, URI, contlen, eol + 2);
-    }
-    else{
+    } else {
         status(501, sd, 0, 0);
-        return; 
+        return;
     }
 
     return;
-
-
 }
 
-void status(int code, int sd, int needok, long int contlen){
-    char message[buffsize] = {0};
-    if (code == 200){
+void status(int code, int sd, int needok, long int contlen) {
+    char message[buffsize] = { 0 };
+    if (code == 200) {
         sprintf(message, "HTTP/1.1 200 OK\r\nContent-Length: %ld\r\n\r\n", contlen);
         send(sd, message, strlen(message), 0);
-        if (needok == 1){
+        if (needok == 1) {
             send(sd, "OK\n", 3, 0);
         }
-    }
-    else if(code == 201){
+    } else if (code == 201) {
         send(sd, "HTTP/1.1 201 Created\r\nContent-Length: 8\r\n\r\nCreated\n", 51, 0);
-    }
-    else if(code == 400){
+    } else if (code == 400) {
         send(sd, "HTTP/1.1 400 Bad Request\r\nContent-Length: 12\r\n\r\nBad Request\n", 60, 0);
         // sprintf(message,  "%ld\n", contlen);
         // send(sd, message, strlen(message), 0);
-    }
-    else if(code == 403){
+    } else if (code == 403) {
         send(sd, "HTTP/1.1 403 Forbidden\r\nContent-Length: 10\r\n\r\nForbidden\n", 56, 0);
-    }
-    else if(code == 404){
+    } else if (code == 404) {
         send(sd, "HTTP/1.1 404 Not Found\r\nContent-Length: 10\r\n\r\nNot Found\n", 56, 0);
-    }
-    else if(code == 500){
-        send(sd, "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 23\r\n\r\nInternal Server Error\n", 80, 0);
-    }
-    else if(code == 501){
-        send(sd, "HTTP/1.1 501 Not Implemented\r\nContent-Length: 16\r\n\r\nNot Implemented\n", 68, 0);
-    }
-    else if(code == 505){
-        send(sd, "HTTP/1.1 505 Version Not Supported\r\nContent-Length: 22\r\n\r\nVersion Not Supported\n", 80, 0);
+    } else if (code == 500) {
+        send(sd,
+            "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 23\r\n\r\nInternal Server "
+            "Error\n",
+            80, 0);
+    } else if (code == 501) {
+        send(sd, "HTTP/1.1 501 Not Implemented\r\nContent-Length: 16\r\n\r\nNot Implemented\n", 68,
+            0);
+    } else if (code == 505) {
+        send(sd,
+            "HTTP/1.1 505 Version Not Supported\r\nContent-Length: 22\r\n\r\nVersion Not "
+            "Supported\n",
+            80, 0);
     }
 
     return;
-
-
-
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
