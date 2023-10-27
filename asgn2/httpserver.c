@@ -16,6 +16,11 @@ int main(int argc, char**argv){
     int port;
     sscanf(argv[1], "%d", &port);
 
+    if (port < 1 || port > 65535){
+        fprintf(stderr, "wrong port number");
+        exit(1);
+    }
+
     if (listener_init(&sk, port) == -1){
         fprintf(stderr, "socket initialize failed");
         exit(1);

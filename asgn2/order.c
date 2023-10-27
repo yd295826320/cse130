@@ -41,6 +41,8 @@ void orderget(int sd, char *uri){
 
 void orderput(int sd, char *uri, int contlen, char *cont){
 
+    // printf("sd %d\nuri %s\ncontlen %d\n", sd, uri, contlen);
+
     struct stat statbuff;
     if (stat(uri, &statbuff) == 0){
         int fd = open(uri, O_RDWR | O_CREAT | O_TRUNC, statbuff.st_mode);
@@ -51,6 +53,7 @@ void orderput(int sd, char *uri, int contlen, char *cont){
         else{
             int byteswritten = write_n_bytes(fd, cont, strlen(cont));
             contlen -= byteswritten;
+            // printf("here\n");
             pass_n_bytes(sd, fd, contlen);
             status(200, sd, 1, 3);
         }
