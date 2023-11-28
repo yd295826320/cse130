@@ -19,16 +19,16 @@
 #include <sys/stat.h>
 #include <bits/getopt_core.h>
 
-#define _GNU_SOURCE  
+#define _GNU_SOURCE
 
-typedef struct logobj{     
-    char * method;
-    char* uri;
+typedef struct logobj {
+    char *method;
+    char *uri;
     int status;
     int request_id;
-}logobj;
+} logobj;
 
-typedef logobj* log_t;
+typedef logobj *log_t;
 
 // typedef struct Threadobj
 // {
@@ -52,22 +52,22 @@ ht *rwlockht;
 
 pthread_mutex_t lock;
 
-void log_writer(log_t log_info){      
-    if (log_info -> method == NULL){
+void log_writer(log_t log_info) {
+    if (log_info->method == NULL) {
         return;
     }
-    fprintf(stderr, "%s,%s,%d,%d\n", log_info -> method, log_info -> uri, log_info -> status, log_info -> request_id);   
+    fprintf(stderr, "%s,%s,%d,%d\n", log_info->method, log_info->uri, log_info->status,
+        log_info->request_id);
     return;
 }
 
-void worker(){
-    while(1){
+void worker() {
+    while (1) {
         uintptr_t connfd = 0;
         queue_pop(connet_q, (void **) &connfd);
         handle_connection(connfd);
         close(connfd);
     }
-    
 }
 
 int main(int argc, char **argv) {
@@ -79,23 +79,23 @@ int main(int argc, char **argv) {
 
     //use getopt to get the number of threads defult is 4
     int opt = 0;
-    uint16_t t = 4;                                    
-    while((opt = getopt(argc, argv, "t:"))!=-1){
-        switch(opt){
-            case 't':                                      
-                t = atoi(optarg);
-                if (t <= 0){
-                    warnx("invalid thread size");
-                    exit(EXIT_FAILURE);
-                }
-                break;
-            case '?':
-                if (optopt == 't') {
-                    fprintf(stderr, "Option -%c requires an argument.\n", optopt);
-                } else {
-                    fprintf(stderr, "Unknown option -%c\n", optopt);
-                }
+    uint16_t t = 4;
+    while ((opt = getopt(argc, argv, "t:")) != -1) {
+        switch (opt) {
+        case 't':
+            t = atoi(optarg);
+            if (t <= 0) {
+                warnx("invalid thread size");
                 exit(EXIT_FAILURE);
+            }
+            break;
+        case '?':
+            if (optopt == 't') {
+                fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+            } else {
+                fprintf(stderr, "Unknown option -%c\n", optopt);
+            }
+            exit(EXIT_FAILURE);
             break;
         }
     }
@@ -110,11 +110,11 @@ int main(int argc, char **argv) {
     //int t = argv[0];
     connet_q = queue_new(t);
     pthread_t thread;
-    
+
     rwlockht = ht_create();
 
-    for (int i = 0; i < t; i++){
-        pthread_create(&thread, NULL, (void *(*) (void *))worker, NULL);  
+    for (int i = 0; i < t; i++) {
+        pthread_create(&thread, NULL, (void *(*) (void *) ) worker, NULL);
     }
 
     signal(SIGPIPE, SIG_IGN);
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 
     while (1) {
         uintptr_t connfd = listener_accept(&sock);
-        queue_push(connet_q, (void *)connfd);
+        queue_push(connet_q, (void *) connfd);
         //debug("%tu", connfd);
     }
     ht_destroy(rwlockht);
@@ -140,35 +140,33 @@ void handle_connection(uintptr_t connfd) {
     const Response_t *res = conn_parse(conn);
 
     const Request_t *req = conn_get_request(conn);
-    
+
     //debug("%s: %d", log -> method, errno);
 
     if (res != NULL) {
         if (req == &REQUEST_GET) {
-            log -> method = "GET";
-        }
-        else if (req == &REQUEST_PUT) {
-            log -> method = "PUT";
+            log->method = "GET";
+        } else if (req == &REQUEST_PUT) {
+            log->method = "PUT";
         }
         char *temp = conn_get_header(conn, "Request-Id");
-        log -> uri = conn_get_uri(conn);
-        log -> status = response_get_code(res);
-        if (temp){
-            log -> request_id = atoi(temp);
-        }
-        else{
-            log -> request_id = 0;
+        log->uri = conn_get_uri(conn);
+        log->status = response_get_code(res);
+        if (temp) {
+            log->request_id = atoi(temp);
+        } else {
+            log->request_id = 0;
         }
         log_writer(log);
         conn_send_response(conn, res);
     } else {
         //debug("%s", conn_str(threads -> conn));
-        
+
         if (req == &REQUEST_GET) {
-            log -> method = "GET";
+            log->method = "GET";
             handle_get(conn, log);
         } else if (req == &REQUEST_PUT) {
-            log -> method = "PUT";
+            log->method = "PUT";
             handle_put(conn, log);
         } else {
             handle_unsupported(conn);
@@ -182,7 +180,6 @@ void handle_get(conn_t *conn, log_t log) {
 
     char *uri = conn_get_uri(conn);
     //debug("GET request not implemented. But, we want to get %s", uri);
-    
 
     /*if (rwlock_ht[uri]){
         rwlock = rwlock_ht[uri];
@@ -196,36 +193,34 @@ void handle_get(conn_t *conn, log_t log) {
     reader_lock(rwlock_ht[uri]);
     */
     pthread_mutex_lock(&lock);
-    rwlock_t* rw = ht_get(rwlockht, uri);
+    rwlock_t *rw = ht_get(rwlockht, uri);
 
-    if (rw == NULL){
+    if (rw == NULL) {
         rw = rwlock_new(N_WAY, 1);
         ht_set(rwlockht, uri, rw);
     }
     pthread_mutex_unlock(&lock);
     reader_lock(rw);
-    log -> uri = uri;
+    log->uri = uri;
 
     const Response_t *res = NULL;
     int fd = open(uri, O_RDONLY, 0);
-    if (fd < 0){
+    if (fd < 0) {
         //debug("%s: %d", uri, errno);
-        if (errno == EACCES || errno == EISDIR) { 
+        if (errno == EACCES || errno == EISDIR) {
             res = &RESPONSE_FORBIDDEN;
             goto out;
-        }
-        else if(errno == ENOTDIR || errno == ENOENT){
+        } else if (errno == ENOTDIR || errno == ENOENT) {
             res = &RESPONSE_NOT_FOUND;
             goto out;
-        }
-        else {
+        } else {
             res = &RESPONSE_INTERNAL_SERVER_ERROR;
             goto out;
         }
     }
     struct stat buffer;
     int status = fstat(fd, &buffer);
-    if (status != 0){
+    if (status != 0) {
         res = &RESPONSE_NOT_FOUND;
         goto out;
     }
@@ -236,29 +231,27 @@ void handle_get(conn_t *conn, log_t log) {
     }
     res = conn_send_file(conn, fd, buffer.st_size);
 
-    if (res == NULL){
+    if (res == NULL) {
         res = &RESPONSE_OK;
     }
-    
 
 out:
-    log -> status = response_get_code(res);
+    log->status = response_get_code(res);
     char *temp_header = conn_get_header(conn, "Request-Id");
-    if (temp_header){
-        log -> request_id = atoi(temp_header);
-    }
-    else{
-        log -> request_id = 0;
+    if (temp_header) {
+        log->request_id = atoi(temp_header);
+    } else {
+        log->request_id = 0;
     }
     log_writer(log);
-    if (res != &RESPONSE_OK){
+    if (res != &RESPONSE_OK) {
         conn_send_response(conn, res);
     }
     reader_unlock(rw);
     close(fd);
 }
 
-void handle_unsupported(conn_t *conn){
+void handle_unsupported(conn_t *conn) {
     //we don't print log for unsupported
     //debug("handling unsupported request");
     // log -> uri = conn_get_uri(threads -> conn);
@@ -286,19 +279,19 @@ void handle_put(conn_t *conn, log_t log) {
 
     //same as get
     pthread_mutex_lock(&lock);
-    rwlock_t* rw;
+    rwlock_t *rw;
     rw = ht_get(rwlockht, uri);
 
-    if (rw == NULL){
+    if (rw == NULL) {
         rw = rwlock_new(N_WAY, 1);
         ht_set(rwlockht, uri, rw);
     }
-    
+
     pthread_mutex_unlock(&lock);
 
     writer_lock(rw);
 
-    log -> uri = uri;
+    log->uri = uri;
 
     // Open the file..
     int fd = open(uri, O_CREAT | O_TRUNC | O_WRONLY, 0666);
@@ -322,15 +315,14 @@ void handle_put(conn_t *conn, log_t log) {
     }
 
 out:
-    log -> status = response_get_code(res);
+    log->status = response_get_code(res);
 
     char *temp_header = conn_get_header(conn, "Request-Id");
 
-    if (temp_header){
-        log -> request_id = atoi(temp_header);
-    }
-    else{
-        log -> request_id = 0;
+    if (temp_header) {
+        log->request_id = atoi(temp_header);
+    } else {
+        log->request_id = 0;
     }
     log_writer(log);
     conn_send_response(conn, res);
@@ -338,4 +330,3 @@ out:
 
     close(fd);
 }
-
