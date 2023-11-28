@@ -1,8 +1,3 @@
-// Asgn 2: A simple HTTP server.
-// By: Eugene Chou
-//     Andrew Quinn
-//     Brian Zhao
-
 #include "asgn2_helper_funcs.h"
 #include "connection.h"
 #include "debug.h"
@@ -35,45 +30,48 @@ typedef struct logobj{
 
 typedef logobj* log_t;
 
-typedef struct Threadobj
-{
-    pthread_t thread;
-    int id;
-    ht *rwlockHT;
-    queue_t *q;
-    int connfd;
-    conn_t *conn;
-} Threadobj;
+// typedef struct Threadobj
+// {
+//     pthread_t thread;
+//     int id;
+//     int connfd;
+//     conn_t *conn;
+// } Threadobj;
 
-typedef Threadobj* Thread;
+// typedef Threadobj* Thread;
 
-void handle_connection(Thread);
+void handle_connection(uintptr_t connfd);
 
-void handle_get(Thread threads, log_t log);
-void handle_put(Thread threads, log_t log);
-void handle_unsupported(Thread threads, log_t log);
+void handle_get(conn_t *conn, log_t log);
+void handle_put(conn_t *conn, log_t log);
+void handle_unsupported(conn_t *conn);
 
-void log_writer(log_t log_info){                               
-    //pthread_mutex_lock(&log_mutex);
+queue_t *connet_q;
+
+ht *rwlockht;
+
+pthread_mutex_t lock;
+
+void log_writer(log_t log_info){      
     if (log_info -> method == NULL){
         return;
     }
-    fprintf(stderr, "%s,%s,%d,%d\n", log_info -> method, log_info -> uri, log_info -> status, log_info -> request_id);                         
-    //pthread_mutex_unlock(&log_mutex);
+    fprintf(stderr, "%s,%s,%d,%d\n", log_info -> method, log_info -> uri, log_info -> status, log_info -> request_id);   
     return;
 }
 
-void worker(Thread threads){
+void worker(){
     while(1){
         uintptr_t connfd = 0;
-        queue_pop(threads -> q, (void **) &connfd);
-        threads -> connfd = connfd;
-        handle_connection(threads);
+        queue_pop(connet_q, (void **) &connfd);
+        handle_connection(connfd);
+        close(connfd);
     }
+    
 }
 
 int main(int argc, char **argv) {
-    if (argc < 4) {
+    if ((argc < 4) && (argc != 2)) {
         warnx("wrong arguments: %s port_num", argv[0]);
         fprintf(stderr, "usage: %s <port>\n", argv[0]);
         return EXIT_FAILURE;
@@ -101,7 +99,7 @@ int main(int argc, char **argv) {
             break;
         }
     }
-    //fprintf(stdout, "here");
+    // fprintf(stderr, "here");
     char *endptr = NULL;
     size_t port = (size_t) strtoull(argv[3], &endptr, 10);
     if (endptr && *endptr != '\0') {
@@ -110,17 +108,13 @@ int main(int argc, char **argv) {
     }
 
     //int t = argv[0];
-    queue_t *q = queue_new(t);
-    // pthread_t *threads = malloc(sizeof(pthread_t));
-    Thread threads[t];
-    ht* rwlockht = ht_create();
+    connet_q = queue_new(t);
+    pthread_t thread;
+    
+    rwlockht = ht_create();
 
     for (int i = 0; i < t; i++){
-        threads[i] = malloc(sizeof(Threadobj));
-        threads[i] -> id = i;
-        threads[i] -> rwlockHT = rwlockht;
-        threads[i] -> q = q;
-        pthread_create(&threads[i] -> thread, NULL, (void *(*) (void *))worker, (void*)threads);  
+        pthread_create(&thread, NULL, (void *(*) (void *))worker, NULL);  
     }
 
     signal(SIGPIPE, SIG_IGN);
@@ -129,58 +123,65 @@ int main(int argc, char **argv) {
 
     while (1) {
         uintptr_t connfd = listener_accept(&sock);
-        queue_push(q, (void *)connfd);
-        debug("%tu", connfd);
+        queue_push(connet_q, (void *)connfd);
+        //debug("%tu", connfd);
     }
-    //free(threads);
-    for (int i = 0; i < t; i++){
-        ht_destroy(threads[i] -> rwlockHT);
-        free(threads[i]);
-    }
+    ht_destroy(rwlockht);
+    queue_delete(&connet_q);
     return EXIT_SUCCESS;
 }
 
-void handle_connection(Thread threads) {
+void handle_connection(uintptr_t connfd) {
 
     log_t log = malloc(sizeof(logobj));
 
-    threads -> conn = conn_new(threads -> connfd);
+    conn_t *conn = conn_new(connfd);
 
-    const Response_t *res = conn_parse(threads -> conn);
+    const Response_t *res = conn_parse(conn);
 
-    const Request_t *req = conn_get_request(threads -> conn);
-
-    log -> method = (char *)(req);
-
-    debug("%s: %d", log -> method, errno);
+    const Request_t *req = conn_get_request(conn);
+    
+    //debug("%s: %d", log -> method, errno);
 
     if (res != NULL) {
-        
-        log -> uri = conn_get_uri(threads -> conn);
+        if (req == &REQUEST_GET) {
+            log -> method = "GET";
+        }
+        else if (req == &REQUEST_PUT) {
+            log -> method = "PUT";
+        }
+        char *temp = conn_get_header(conn, "Request-Id");
+        log -> uri = conn_get_uri(conn);
         log -> status = response_get_code(res);
-        log -> request_id = atoi(conn_get_header(threads -> conn, "Request-Id"));
+        if (temp){
+            log -> request_id = atoi(temp);
+        }
+        else{
+            log -> request_id = 0;
+        }
         log_writer(log);
-        conn_send_response(threads -> conn, res);
+        conn_send_response(conn, res);
     } else {
-        debug("%s", conn_str(threads -> conn));
+        //debug("%s", conn_str(threads -> conn));
         
         if (req == &REQUEST_GET) {
-            // lock
-            handle_get(threads, log);
+            log -> method = "GET";
+            handle_get(conn, log);
         } else if (req == &REQUEST_PUT) {
-            handle_put(threads, log);
+            log -> method = "PUT";
+            handle_put(conn, log);
         } else {
-            handle_unsupported(threads, log);
+            handle_unsupported(conn);
         }
     }
     free(log);
-    conn_delete(&(threads -> conn));
+    conn_delete(&conn);
 }
 
-void handle_get(Thread threads, log_t log) {
+void handle_get(conn_t *conn, log_t log) {
 
-    char *uri = conn_get_uri(threads -> conn);
-    debug("GET request not implemented. But, we want to get %s", uri);
+    char *uri = conn_get_uri(conn);
+    //debug("GET request not implemented. But, we want to get %s", uri);
     
 
     /*if (rwlock_ht[uri]){
@@ -194,27 +195,26 @@ void handle_get(Thread threads, log_t log) {
     //lock the file for reading
     reader_lock(rwlock_ht[uri]);
     */
-
-    rwlock_t* rw = ht_get(threads -> rwlockHT, uri);
+    pthread_mutex_lock(&lock);
+    rwlock_t* rw = ht_get(rwlockht, uri);
 
     if (rw == NULL){
         rw = rwlock_new(N_WAY, 1);
-        ht_set(threads -> rwlockHT, uri, rw);
+        ht_set(rwlockht, uri, rw);
     }
-
+    pthread_mutex_unlock(&lock);
     reader_lock(rw);
-
     log -> uri = uri;
 
     const Response_t *res = NULL;
     int fd = open(uri, O_RDONLY, 0);
     if (fd < 0){
-        debug("%s: %d", uri, errno);
-        if (errno == EACCES) {
+        //debug("%s: %d", uri, errno);
+        if (errno == EACCES || errno == EISDIR) { 
             res = &RESPONSE_FORBIDDEN;
             goto out;
         }
-        else if(errno == ENOTDIR){
+        else if(errno == ENOTDIR || errno == ENOENT){
             res = &RESPONSE_NOT_FOUND;
             goto out;
         }
@@ -230,61 +230,80 @@ void handle_get(Thread threads, log_t log) {
         goto out;
     }
 
-    if (S_ISDIR(buffer.st_mode) == 0) {
+    if (S_ISDIR(buffer.st_mode) != 0) {
         res = &RESPONSE_FORBIDDEN;
         goto out;
     }
-    res = conn_send_file(threads -> conn, fd, buffer.st_size);
+    res = conn_send_file(conn, fd, buffer.st_size);
 
     if (res == NULL){
         res = &RESPONSE_OK;
     }
-    reader_unlock(rw);
-    close(fd);
+    
 
 out:
     log -> status = response_get_code(res);
-    log -> request_id = atoi(conn_get_header(threads -> conn, "Request-Id"));
+    char *temp_header = conn_get_header(conn, "Request-Id");
+    if (temp_header){
+        log -> request_id = atoi(temp_header);
+    }
+    else{
+        log -> request_id = 0;
+    }
     log_writer(log);
-    conn_send_response(threads -> conn, res);
+    if (res != &RESPONSE_OK){
+        conn_send_response(conn, res);
+    }
+    reader_unlock(rw);
+    close(fd);
 }
 
-void handle_unsupported(Thread threads, log_t log) {
-    debug("handling unsupported request");
-    log -> uri = conn_get_uri(threads -> conn);
-    log -> status = 501;
-    log -> request_id = atoi(conn_get_header(threads -> conn, "Request-Id"));
-    log_writer(log);
+void handle_unsupported(conn_t *conn){
+    //we don't print log for unsupported
+    //debug("handling unsupported request");
+    // log -> uri = conn_get_uri(threads -> conn);
+    // log -> status = 501;
+    // char *temp_header = conn_get_header(threads -> conn, "Request-Id");
+    // if (temp_header){
+    //     log -> request_id = atoi(temp_header);
+    // }
+    // else{
+    //     log -> request_id = 0;
+    // }
+    // log_writer(log);
     // send responses
-    conn_send_response(threads -> conn, &RESPONSE_NOT_IMPLEMENTED);
+    conn_send_response(conn, &RESPONSE_NOT_IMPLEMENTED);
 }
 
-void handle_put(Thread threads, log_t log) {
+void handle_put(conn_t *conn, log_t log) {
 
-    char *uri = conn_get_uri(threads -> conn);
+    char *uri = conn_get_uri(conn);
     const Response_t *res = NULL;
-    debug("handling put request for %s", uri);
 
     // Check if file already exists before opening it.
     bool existed = access(uri, F_OK) == 0;
-    debug("%s existed? %d", uri, existed);
+    //debug("%s existed? %d", uri, existed);
 
     //same as get
-    rwlock_t* rw = ht_get(threads -> rwlockHT, uri);
+    pthread_mutex_lock(&lock);
+    rwlock_t* rw;
+    rw = ht_get(rwlockht, uri);
 
     if (rw == NULL){
         rw = rwlock_new(N_WAY, 1);
-        ht_set(threads -> rwlockHT, uri, rw);
+        ht_set(rwlockht, uri, rw);
     }
+    
+    pthread_mutex_unlock(&lock);
 
     writer_lock(rw);
 
     log -> uri = uri;
 
     // Open the file..
-    int fd = open(uri, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+    int fd = open(uri, O_CREAT | O_TRUNC | O_WRONLY, 0666);
     if (fd < 0) {
-        debug("%s: %d", uri, errno);
+        //debug("%s: %d", uri, errno);
         if (errno == EACCES || errno == EISDIR || errno == ENOENT) {
             res = &RESPONSE_FORBIDDEN;
             goto out;
@@ -294,7 +313,7 @@ void handle_put(Thread threads, log_t log) {
         }
     }
 
-    res = conn_recv_file(threads -> conn, fd);
+    res = conn_recv_file(conn, fd);
 
     if (res == NULL && existed) {
         res = &RESPONSE_OK;
@@ -302,22 +321,21 @@ void handle_put(Thread threads, log_t log) {
         res = &RESPONSE_CREATED;
     }
 
+out:
+    log -> status = response_get_code(res);
+
+    char *temp_header = conn_get_header(conn, "Request-Id");
+
+    if (temp_header){
+        log -> request_id = atoi(temp_header);
+    }
+    else{
+        log -> request_id = 0;
+    }
+    log_writer(log);
+    conn_send_response(conn, res);
     writer_unlock(rw);
 
     close(fd);
-
-out:
-    log -> status = response_get_code(res);
-    log -> request_id = atoi(conn_get_header(threads -> conn, "Request-Id"));
-    log_writer(log);
-    conn_send_response(threads -> conn, res);
 }
-
-
-
-//questions: The worker thread and the dispatcher thread. : thread create n times and then push them 
-// Do we only need to put a lock for read and write? What about the log? 
-// Where do we need to send the message for log?
-
-
 
