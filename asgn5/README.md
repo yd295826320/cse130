@@ -1,6 +1,4 @@
 #Assignment 5 directory
 
-This directory contains source code and other files for Assignment 5.
-
-Use this README document to store notes about design, testing, and
-questions you have while developing your assignment.
+I used chatgpt and some website for simple linked list in c. And got the basic idea of the assignment from mitchell's psedo.
+https://www.programiz.com/dsa/linked-list
