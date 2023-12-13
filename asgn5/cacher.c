@@ -13,12 +13,12 @@
 #include <bits/getopt_core.h>
 
 #define _GNU_SOURCE
-typedef enum {FIFO, LRU, CLOCK}Policy;
-typedef struct Cache{
+typedef enum { FIFO, LRU, CLOCK } Policy;
+typedef struct Cache {
     Policy p;
     Node *list;
     Node *history_list;
-    int clock_pointer; 
+    int clock_pointer;
     int n;
     int CO;
     int CA;
@@ -42,64 +42,48 @@ int main(int argc, char **argv) {
     cache_t cache = malloc(sizeof(Cache));
     while ((opt = getopt(argc, argv, "N:FLC")) != -1) {
         switch (opt) {
-            case 'N':
-                n = atoi(optarg);
-                break;
-            case 'F':
-                cache -> p = FIFO;
-                break;
-            case 'L':
-                cache -> p = LRU;
-                break;
-            case 'C':
-                cache -> p = CLOCK;
-                break;
-            default: 
-                fprintf(stderr, "Usage: %s [-N size] [-F|-L|-C]\n", argv[0]);
-                exit(EXIT_FAILURE);
+        case 'N': n = atoi(optarg); break;
+        case 'F': cache->p = FIFO; break;
+        case 'L': cache->p = LRU; break;
+        case 'C': cache->p = CLOCK; break;
+        default: fprintf(stderr, "Usage: %s [-N size] [-F|-L|-C]\n", argv[0]); exit(EXIT_FAILURE);
         }
     }
 
-    cache -> list = NULL;
-    cache -> history_list = NULL;
-    cache -> clock_pointer = 0;
-    cache -> n = n;
-    cache -> CA = 0;
-    cache -> CO = 0;
-    
-    
+    cache->list = NULL;
+    cache->history_list = NULL;
+    cache->clock_pointer = 0;
+    cache->n = n;
+    cache->CA = 0;
+    cache->CO = 0;
+
     char l[100] = "";
-    char* element = "";
-    
-    while(fgets(l, 100, stdin)){
+    char *element = "";
+
+    while (fgets(l, 100, stdin)) {
         size_t len = strlen(l);
         if (len > 0 && l[len - 1] == '\n') {
             l[len - 1] = '\0';
         }
         element = strdup(l);
-        
+
         bool check = false;
-        if (cache -> p == FIFO){
-            
-            check = insert_fifo(cache,element);    
-        }
-        else if(cache -> p == LRU){
-            check = insert_lru(cache,element); 
-        }
-        else if(cache -> p == CLOCK){
-            check = insert_clock(cache,element); 
+        if (cache->p == FIFO) {
+
+            check = insert_fifo(cache, element);
+        } else if (cache->p == LRU) {
+            check = insert_lru(cache, element);
+        } else if (cache->p == CLOCK) {
+            check = insert_clock(cache, element);
         }
 
-        
-        if (check == true){
-            fprintf(stdout,"HIT\n");
+        if (check == true) {
+            fprintf(stdout, "HIT\n");
+        } else {
+            fprintf(stdout, "MISS\n");
         }
-        else{
-            fprintf(stdout,"MISS\n");
-        }
-
     }
-    fprintf(stdout,"%d %d\n", cache->CO, cache->CA);
+    fprintf(stdout, "%d %d\n", cache->CO, cache->CA);
     deleteList(&(cache->list));
     deleteList(&(cache->history_list));
     free(element);
@@ -108,143 +92,115 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-bool insert_fifo(cache_t cache, char *element){
-    if (cache == NULL){
+bool insert_fifo(cache_t cache, char *element) {
+    if (cache == NULL) {
         warnx("invalid cache");
         exit(EXIT_FAILURE);
     }
-    if (element == NULL){
+    if (element == NULL) {
         warnx("invalid element");
         exit(EXIT_FAILURE);
     }
-    if (get(cache -> list, element)){
+    if (get(cache->list, element)) {
         return true;
     }
-    if (list_is_full(cache->list, cache->n)){
-        removeHead(&(cache -> list));
-        if (get(cache->history_list,element) == NULL){
+    if (list_is_full(cache->list, cache->n)) {
+        removeHead(&(cache->list));
+        if (get(cache->history_list, element) == NULL) {
             cache->CO++;
-            addEnd(&(cache -> history_list), element);
-        }
-        else{
+            addEnd(&(cache->history_list), element);
+        } else {
             cache->CA++;
         }
-    }
-    else{
-        if (get(cache->history_list,element) == NULL){
+    } else {
+        if (get(cache->history_list, element) == NULL) {
             cache->CO++;
-            addEnd(&(cache -> history_list), element);
+            addEnd(&(cache->history_list), element);
         }
     }
 
-    addEnd(&(cache -> list), element);
-    
+    addEnd(&(cache->list), element);
+
     //printList(cache->list);
     return false;
 }
 
-bool insert_lru(cache_t cache, char *element){
-    if (cache == NULL){
+bool insert_lru(cache_t cache, char *element) {
+    if (cache == NULL) {
         warnx("invalid cache");
         exit(EXIT_FAILURE);
     }
-    if (element == NULL){
+    if (element == NULL) {
         warnx("invalid element");
         exit(EXIT_FAILURE);
     }
-    if (get(cache -> list, element)){
-        moveEnd(&cache->list,element);
+    if (get(cache->list, element)) {
+        moveEnd(&cache->list, element);
         return true;
     }
-    if (list_is_full(cache->list, cache->n)){
-        removeHead(&cache -> list);
-        if (!get(cache->history_list,element)){
+    if (list_is_full(cache->list, cache->n)) {
+        removeHead(&cache->list);
+        if (!get(cache->history_list, element)) {
             cache->CO++;
-            addEnd(&(cache -> history_list), element);
-        }
-        else{
+            addEnd(&(cache->history_list), element);
+        } else {
             cache->CA++;
         }
-    }
-    else{
-        if (!get(cache->history_list,element)){
+    } else {
+        if (!get(cache->history_list, element)) {
             cache->CO++;
-            addEnd(&(cache -> history_list), element);
+            addEnd(&(cache->history_list), element);
         }
     }
 
-    addEnd(&(cache -> list), element);
+    addEnd(&(cache->list), element);
     //printList(cache->list);
     return false;
 }
 
-bool insert_clock(Cache *cache, char *element){
-    if (cache == NULL){
+bool insert_clock(Cache *cache, char *element) {
+    if (cache == NULL) {
         warnx("invalid cache");
         exit(EXIT_FAILURE);
     }
-    if (element == NULL){
+    if (element == NULL) {
         warnx("invalid element");
         exit(EXIT_FAILURE);
     }
-    
-    if (get(cache -> list, element)){
-        Node* item = get(cache -> list, element);
-        item -> ref = 1;
+
+    if (get(cache->list, element)) {
+        Node *item = get(cache->list, element);
+        item->ref = 1;
         //printList(cache->list);
         return true;
     }
-    if (list_is_full(cache->list, cache->n)){
-        Node* item = get_index(cache -> list, cache -> clock_pointer);
-        while(item -> ref == 1){
+    if (list_is_full(cache->list, cache->n)) {
+        Node *item = get_index(cache->list, cache->clock_pointer);
+        while (item->ref == 1) {
             item->ref = 0;
             cache->clock_pointer = (cache->clock_pointer + 1) % cache->n;
-            item = get_index(cache -> list, cache -> clock_pointer);
+            item = get_index(cache->list, cache->clock_pointer);
         }
 
         overwrite(cache->list, cache->clock_pointer, element);
         cache->clock_pointer = (cache->clock_pointer + 1) % cache->n;
 
-        if (!get(cache->history_list,element)){
+        if (!get(cache->history_list, element)) {
             cache->CA++;
-        }
-        else{
+        } else {
             cache->CO++;
-            addEnd(&(cache -> history_list), element);
+            addEnd(&(cache->history_list), element);
         }
         //printList(cache->list);
         return false;
-    }
-    else{
-        if (!get(cache->history_list,element)){
+    } else {
+        if (!get(cache->history_list, element)) {
             cache->CO++;
-            addEnd(&(cache -> history_list), element);
+            addEnd(&(cache->history_list), element);
         }
     }
 
-    addEnd(&(cache -> list), element);
+    addEnd(&(cache->list), element);
     //printList(cache->list);
     return false;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
