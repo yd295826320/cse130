@@ -185,13 +185,19 @@ bool insert_clock(Cache *cache, char *element) {
         overwrite(cache->list, cache->clock_pointer, element);
         cache->clock_pointer = (cache->clock_pointer + 1) % cache->n;
 
-        if (!get(cache->history_list, element)) {
+        /* if (!get(cache->history_list, element)) {
             cache->CA++;
         } else {
             cache->CO++;
             addEnd(&(cache->history_list), element);
-        }
+        } */
         //printList(cache->list);
+        if (!get(cache->history_list, element)) {
+            cache->CO++;
+            addEnd(&(cache->history_list), element);
+        } else {
+            cache->CA++;
+        }
         return false;
     } else {
         if (!get(cache->history_list, element)) {
