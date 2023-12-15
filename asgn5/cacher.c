@@ -26,9 +26,9 @@ typedef struct Cache {
 
 typedef Cache *cache_t;
 
-bool insert_fifo(Cache *cache, char *element);
-bool insert_lru(Cache *cache, char *element);
-bool insert_clock(Cache *cache, char *element);
+bool insert_fifo(Cache *cache, void *element);
+bool insert_lru(Cache *cache, void *element);
+bool insert_clock(Cache *cache, void *element);
 
 int main(int argc, char **argv) {
     if (argc < 3) {
@@ -58,9 +58,9 @@ int main(int argc, char **argv) {
     cache->CO = 0;
 
     char l[100] = "";
-    char *element = "";
+    void *element = "";
 
-    while (fgets(l, 100, stdin)) {
+    while (fgets(l, sizeof(l), stdin)) {
         size_t len = strlen(l);
         if (len > 0 && l[len - 1] == '\n') {
             l[len - 1] = '\0';
@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-bool insert_fifo(cache_t cache, char *element) {
+bool insert_fifo(cache_t cache, void *element) {
     if (cache == NULL) {
         warnx("invalid cache");
         exit(EXIT_FAILURE);
@@ -125,7 +125,7 @@ bool insert_fifo(cache_t cache, char *element) {
     return false;
 }
 
-bool insert_lru(cache_t cache, char *element) {
+bool insert_lru(cache_t cache, void *element) {
     if (cache == NULL) {
         warnx("invalid cache");
         exit(EXIT_FAILURE);
@@ -158,7 +158,7 @@ bool insert_lru(cache_t cache, char *element) {
     return false;
 }
 
-bool insert_clock(Cache *cache, char *element) {
+bool insert_clock(Cache *cache, void *element) {
     if (cache == NULL) {
         warnx("invalid cache");
         exit(EXIT_FAILURE);
@@ -184,13 +184,6 @@ bool insert_clock(Cache *cache, char *element) {
 
         overwrite(cache->list, cache->clock_pointer, element);
         cache->clock_pointer = (cache->clock_pointer + 1) % cache->n;
-
-        /* if (!get(cache->history_list, element)) {
-            cache->CA++;
-        } else {
-            cache->CO++;
-            addEnd(&(cache->history_list), element);
-        } */
         //printList(cache->list);
         if (!get(cache->history_list, element)) {
             cache->CO++;
